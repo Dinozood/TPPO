@@ -39,6 +39,8 @@ class Client():
                                                 "exmpl: SET [regime_arg] [target_temp]")
                 if cmd_split[0] == "TIP":
                     self.print_usage()
+                if cmd_split[0] == "CLOSE":
+                    self.close_connection()
             except ArgumentException as e:
                 print(e)
 
@@ -113,6 +115,13 @@ class Client():
             print("Error, please use right parameters, 0 => REGIME => 10 and 15 => TARGET_TEMP => 35")
         else:
             print("Device parameters are setted")
+
+    def close_connection(self):
+        cmd = {
+            "command": "CLOSE"
+        }
+        # HERE!
+
 
 
 if __name__ == "__main__":
