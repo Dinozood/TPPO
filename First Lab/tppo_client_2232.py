@@ -1,5 +1,6 @@
 import json
 import socket
+import warnings
 from threading import Thread, Lock
 import argparse
 
@@ -17,8 +18,10 @@ class Client():
         self.sock_fd = 0
         self.server_addr = _server_addr
         self.server_port = _server_port
-        self.server_addr_port = (self.server_addr, self.server_port)
+        self.server_addr_port = (self.server_addr, int(self.server_port))
+        self.server_addr_port = ("127.0.0.1", 1337)
         self.IO_mutex = Lock()
+        self.BUFFERSIZE = 4096
 
     def sending(self):
         while True:
@@ -42,30 +45,34 @@ class Client():
                 if cmd_split[0] == "CLOSE":
                     self.close_connection()
             except ArgumentException as e:
+                print("ERRORROROROROR")
                 print(e)
 
     def run(self):
         self.create_socket()
-        sending_thread = Thread(target=self.sending())
+        sending_thread = Thread(target=self.sending)
         sending_thread.daemon = True  # Чтобы не плодить сирот и зомбей
         sending_thread.start()
         self.print_usage()
         while True:
-            data = self.sock_fd.recv(4096)
-            if not data:
-                break
-            print(data.encode())
+            pass
+            # data = self.sock_fd.recv(self.BUFFERSIZE)
+            # if not data:
+            #     break
+            # print(data.decode())
 
     def create_socket(self):
-        self.sock_fd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock_fd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if self.sock_fd == -1:
             raise CreationSocketException("Failed to create UDP socket")
-        cmd = {"command": "CONNECT"}
+        cmd = {
+            "command": "CONNECT"
+        }
         js_cmd = json.dumps(cmd)
-        self.sock_fd.sendto(js_cmd.encode(), self.server_addr_port)
-        js_data = self.sock_fd.recv(4096)
+        self.sock_fd.sendto(js_cmd.encode("utf-8"), self.server_addr_port)
+        js_data = self.sock_fd.recv(self.BUFFERSIZE)
         js_data = js_data.decode()
-        js_data = json.dumps(js_data)
+        js_data = json.loads(js_data)
         if js_data["status"] == "OK":
             print(f"Connected to server at {self.server_addr}:{self.server_port}")
 
@@ -84,19 +91,27 @@ class Client():
         }
         js_cmd = json.dumps(cmd)
         self.sock_fd.sendto(js_cmd.encode(), self.server_addr_port)
-        self.sock_fd.recv(4096)
+        data = self.sock_fd.recv(self.BUFFERSIZE)
+        data = data.decode()
+        js_data = json.loads(data)
+        if js_data["status"] == "OK":
+            print("Server is alive")
+        else:
+            print("Unknown error, server sent something strange")
 
     def get_device_params(self):
-        cmd = {"command": "GET"}
+        cmd = {
+            "command": "GET"
+        }
         js_cmd = json.dumps(cmd)
         self.sock_fd.sendto(js_cmd.encode(), self.server_addr_port)
-        js_data = self.sock_fd.recv(4096)
-        js_data = js_data.decode()
-        js_data = json.dumps(js_data)
-        print(f"Device parameters are"
-              f"REGIME - {js_data['regime']}"
-              f"TARGET TEMPERATURE - {js_data['target_temp']}"
-              f"CURRENT TEMPERATURE - {js_data['current_temp']}")
+        data = self.sock_fd.recv(self.BUFFERSIZE)
+        data = data.decode()
+        js_data = json.loads(data)
+        print(f"Device parameters are\n"
+              f"REGIME - {js_data['regime']}\n"
+              f"TARGET TEMPERATURE - {js_data['target_temp']}\n"
+              f"CURRENT TEMPERATURE - {js_data['current_temp']}\n")
 
     def set_device_params(self, regime, target_temp):
         cmd = {
@@ -108,21 +123,28 @@ class Client():
         }
         js_cmd = json.dumps(cmd)
         self.sock_fd.sendto(js_cmd.encode(), self.server_addr_port)
-        js_data = self.sock_fd.recv(4096)
+        js_data = self.sock_fd.recv(self.BUFFERSIZE)
         js_data = js_data.decode()
-        js_data = json.dumps(js_data)
+        js_data = json.loads(js_data)
         if js_data["status"] != "OK":
             print("Error, please use right parameters, 0 => REGIME => 10 and 15 => TARGET_TEMP => 35")
         else:
             print("Device parameters are setted")
 
-    def close_connection(self):
+    def __del__(self):
         cmd = {
             "command": "CLOSE"
         }
-        # HERE!
-        ###
-
+        js_cmd = json.loads(cmd)
+        self.sock_fd.sendto(js_cmd.encode(), self.server_addr_port)
+        js_data = self.sock_fd.recv(self.BUFFERSIZE)
+        js_data = js_data.decode()
+        js_data = json.loads(js_data)
+        if js_data["status"] != "OK":
+            print("Error, server didn't close the connection")
+        else:
+            print("Connection with server closed")
+            self.sock_fd.close()
 
 
 if __name__ == "__main__":
