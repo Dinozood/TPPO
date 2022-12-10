@@ -16,6 +16,8 @@ from Device import Conditioner
 
 flag = True
 
+#TODO: Обработчик входящих параметров на SET
+
 
 class Server(FileSystemEventHandler):
     def __init__(self, _addr, _port):
@@ -81,7 +83,10 @@ class Server(FileSystemEventHandler):
             regime = js_msg["parameters"]["regime"]
             target_temp = js_msg["parameters"]["target_temp"]
             self.mutex.acquire()
-            self.conditioner.set_params(int(regime), int(target_temp))
+            if self.conditioner.set_params(int(regime), int(target_temp)):
+                repl = {
+                    "comment": f"Wrong params, please use 0 => regime => 10 and 0 => target_temp => 35"
+                }
             self.mutex.release()
             repl = None
         if js_msg["command"] == "CLOSE":
